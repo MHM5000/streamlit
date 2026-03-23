@@ -18,6 +18,12 @@ syntax = "proto3";
 
 import "streamlit/proto/LabelVisibility.proto";
 
+message QuickSelectOption {
+  string id = 1;
+  string begin_date = 2;
+  string end_date = 3;
+}
+
 message DateInput {
   string id = 1;
   string label = 2;
@@ -34,4 +40,7 @@ message DateInput {
   string format = 13;
   // If set, widget value is bound to this query parameter key
   optional string query_param_key = 14;
+  repeated QuickSelectOption quick_select_options = 15;
+  // Explicit quick select control: unset = auto, true = enable, false = disable.
+  optional bool quick_select = 16;
 }

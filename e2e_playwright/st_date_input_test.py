@@ -35,7 +35,7 @@ from e2e_playwright.shared.app_utils import (
     reset_hovering,
 )
 
-NUM_DATE_INPUTS = 22
+NUM_DATE_INPUTS = 24
 
 
 def test_date_input_rendering(themed_app: Page, assert_snapshot: ImageCompareFunction):
@@ -631,3 +631,23 @@ def test_date_input_query_param_out_of_range_resets(page: Page, app_base_url: st
 
     expect_prefixed_markdown(page, "Bound minmax:", "2025-06-15")
     expect(page).not_to_have_url(re.compile(r"[?&]bound_minmax_date="))
+
+
+def test_custom_quick_select_options_visible(app: Page):
+    """Test that custom quick select options are shown for range inputs."""
+    date_input = get_date_input(app, "Quick select with custom options")
+    date_input.locator("input").click()
+
+    # Quick select dropdown should be visible
+    quick_select = app.locator('[data-baseweb="select"]')
+    expect(quick_select).to_be_visible()
+
+
+def test_quick_select_disabled_with_empty_dict(app: Page):
+    """Test that empty dict disables quick select even when min_value is old."""
+    date_input = get_date_input(app, "Quick select disabled")
+    date_input.locator("input").click()
+
+    # Quick select dropdown should NOT be visible
+    quick_select = app.locator('[data-baseweb="select"]')
+    expect(quick_select).not_to_be_visible()

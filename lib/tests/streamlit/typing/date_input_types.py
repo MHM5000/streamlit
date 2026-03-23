@@ -21,7 +21,7 @@ from typing_extensions import assert_type
 # Perform some "type checking testing"; mypy should flag any assignments that are
 # incorrect.
 if TYPE_CHECKING:
-    from datetime import date, datetime
+    from datetime import date, datetime, timedelta
 
     from streamlit.elements.widgets.time_widgets import (
         DateWidgetRangeReturn,
@@ -181,3 +181,32 @@ if TYPE_CHECKING:
         DateWidgetRangeReturn,
     )
     assert_type(date_input("foo", date(2024, 1, 1), key="my_key", bind=None), date)
+
+    # Test with quick_select_options parameter
+    assert_type(
+        date_input(
+            "foo",
+            (date(2024, 1, 1), date(2024, 12, 31)),
+            quick_select_options={
+                "Last Week": (timedelta(days=-7), "today"),
+                "Q1 2024": (date(2024, 1, 1), date(2024, 3, 31)),
+            },
+        ),
+        DateWidgetRangeReturn,
+    )
+    assert_type(
+        date_input(
+            "foo",
+            (date(2024, 1, 1), date(2024, 12, 31)),
+            quick_select_options={},
+        ),
+        DateWidgetRangeReturn,
+    )
+    assert_type(
+        date_input(
+            "foo",
+            (date(2024, 1, 1), date(2024, 12, 31)),
+            quick_select_options=None,
+        ),
+        DateWidgetRangeReturn,
+    )

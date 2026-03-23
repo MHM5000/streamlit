@@ -668,6 +668,81 @@ describe("DateInput widget", () => {
         expect(props.widgetMgr.setStringArrayValue).toHaveBeenCalled()
       })
     })
+
+    it("renders without error when custom quickSelectOptions are provided", () => {
+      const props = getProps({
+        isRange: true,
+        min: "2025-01-01",
+        default: ["2025-01-01", "2025-01-31"],
+        quickSelectOptions: [
+          { id: "Q1 2025", beginDate: "2025/01/01", endDate: "2025/03/31" },
+          { id: "Q2 2025", beginDate: "2025/04/01", endDate: "2025/06/30" },
+        ],
+      })
+
+      render(<DateInput {...props} />)
+
+      // Component should render without error
+      expect(screen.getByTestId("stDateInput")).toBeVisible()
+    })
+
+    it("does not show default quick select when custom quickSelectOptions override it", async () => {
+      const user = userEvent.setup()
+      // Use an old min date that would normally trigger default quick select
+      const oldMinDate = "2020-01-01"
+      const props = getProps({
+        isRange: true,
+        min: oldMinDate,
+        default: [
+          oldMinDate,
+          moment(oldMinDate).add(1, "day").format("YYYY-MM-DD"),
+        ],
+        quickSelectOptions: [
+          { id: "Custom", beginDate: "2025/01/01", endDate: "2025/03/31" },
+        ],
+      })
+
+      render(<DateInput {...props} />)
+
+      const dateInput = screen.getByTestId("stDateInputField")
+      await user.click(dateInput)
+
+      // Default quick select combobox (the "Past Week" etc. dropdown)
+      // should NOT appear when custom options are provided, since
+      // custom options use quickSelectOptions prop instead of quickSelect=true
+      const quickSelect = screen.queryByRole("combobox")
+      // With custom options, BaseUI renders a different UI than with quickSelect=true
+      // so the default combobox should not be present
+      if (quickSelect) {
+        // If a combobox IS shown, it should be for custom options, not defaults
+        await user.click(quickSelect)
+        expect(
+          screen.queryByRole("option", { name: /Past\s*Week/i })
+        ).not.toBeInTheDocument()
+      }
+    })
+
+    it("does not show quick select when empty quickSelectOptions provided for recent range", async () => {
+      const user = userEvent.setup()
+      const recentMinDate = moment().subtract(1, "month").format("YYYY-MM-DD")
+      const props = getProps({
+        isRange: true,
+        min: recentMinDate,
+        default: [
+          recentMinDate,
+          moment(recentMinDate).add(1, "day").format("YYYY-MM-DD"),
+        ],
+        quickSelectOptions: [],
+      })
+
+      render(<DateInput {...props} />)
+
+      const dateInput = screen.getByTestId("stDateInputField")
+      await user.click(dateInput)
+
+      // Quick select should not be visible since empty options override default
+      expect(screen.queryByRole("combobox")).not.toBeInTheDocument()
+    })
   })
 })
 

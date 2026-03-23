@@ -78,6 +78,15 @@ DateValue: TypeAlias = NullableScalarDateValue | Sequence[NullableScalarDateValu
 DateWidgetRangeReturn: TypeAlias = tuple[()] | tuple[date] | tuple[date, date]
 DateWidgetReturn: TypeAlias = date | DateWidgetRangeReturn | None
 
+# Type for quick select options: label -> (start_date, end_date)
+QuickSelectOptions: TypeAlias = dict[
+    str,
+    tuple[
+        date | datetime | timedelta | str | Literal["today"],
+        date | datetime | timedelta | str | Literal["today"],
+    ],
+]
+
 
 DEFAULT_STEP_MINUTES: Final = 15
 ALLOWED_DATE_FORMATS: Final = re.compile(
@@ -428,6 +437,47 @@ class _DateInputValues:
                     f"must lie between the `min_value` of {self.min} "
                     f"and the `max_value` of {self.max}, inclusively."
                 )
+
+
+def _resolve_quick_select_date(
+    date_value: date | datetime | timedelta | str | Literal["today"],
+) -> date:
+    """Resolve a quick select date value to an absolute date.
+
+    Supports:
+    - date/datetime objects
+    - ISO date strings
+    - "today" literal
+    - timedelta (resolved relative to today)
+    """
+    if isinstance(date_value, timedelta):
+        return datetime.now().date() + date_value
+
+    if date_value == "today":
+        return datetime.now().date()
+
+    if isinstance(date_value, str):
+        try:
+            return date.fromisoformat(date_value)
+        except ValueError:
+            try:
+                return datetime.fromisoformat(date_value).date()
+            except ValueError:
+                raise StreamlitAPIException(
+                    f"Invalid date string in quick_select_options: {date_value}. "
+                    f'Expected ISO format (YYYY-MM-DD) or "today".'
+                )
+
+    if isinstance(date_value, datetime):
+        return date_value.date()
+
+    if isinstance(date_value, date):
+        return date_value
+
+    raise StreamlitAPIException(
+        f"Invalid date type in quick_select_options: {type(date_value).__name__}. "
+        f"Expected date, datetime, timedelta, ISO string, or 'today'."
+    )
 
 
 @dataclass
@@ -1440,6 +1490,7 @@ class TimeWidgetsMixin:
         label_visibility: LabelVisibility = "visible",
         width: WidthWithoutContent = "stretch",
         bind: BindOption = None,
+        quick_select_options: QuickSelectOptions | None = None,
     ) -> date: ...
 
     @overload
@@ -1460,6 +1511,7 @@ class TimeWidgetsMixin:
         label_visibility: LabelVisibility = "visible",
         width: WidthWithoutContent = "stretch",
         bind: BindOption = None,
+        quick_select_options: QuickSelectOptions | None = None,
     ) -> date | None: ...
 
     @overload
@@ -1482,6 +1534,7 @@ class TimeWidgetsMixin:
         label_visibility: LabelVisibility = "visible",
         width: WidthWithoutContent = "stretch",
         bind: BindOption = None,
+        quick_select_options: QuickSelectOptions | None = None,
     ) -> DateWidgetRangeReturn: ...
 
     @gather_metrics("date_input")
@@ -1502,6 +1555,7 @@ class TimeWidgetsMixin:
         label_visibility: LabelVisibility = "visible",
         width: WidthWithoutContent = "stretch",
         bind: BindOption = None,
+        quick_select_options: QuickSelectOptions | None = None,
     ) -> DateWidgetReturn:
         r"""Display a date input widget.
 
@@ -1655,6 +1709,27 @@ class TimeWidgetsMixin:
             parameters (e.g.,
             ``?vacation=2025-01-01&vacation=2025-01-31``).
 
+        quick_select_options : dict or None
+            Custom quick select options for date range inputs. This parameter
+            allows you to define preset date ranges that users can quickly
+            select from a dropdown menu.
+
+            .. note::
+               This parameter only works with date range inputs. To create a
+               date range input, pass a list or tuple as the ``value`` parameter.
+
+            The dictionary maps option labels to tuples of (start_date, end_date).
+            Each date can be specified as:
+
+            - ``datetime.date`` or ``datetime.datetime``: Absolute date
+            - ``datetime.timedelta``: Relative date (resolved relative to today)
+            - ISO date string (e.g., ``"2025-01-01"``): Absolute date
+            - ``"today"``: Current date
+
+            Pass an empty dict ``{}`` to explicitly disable quick select.
+            If ``None`` (default), Streamlit automatically enables quick select
+            for date ranges where the minimum date is more than 2 years in the past.
+
         Returns
         -------
         datetime.date or a tuple with 0-2 dates or None
@@ -1712,6 +1787,48 @@ class TimeWidgetsMixin:
            https://doc-date-input-empty.streamlit.app/
            height: 380px
 
+        To add custom quick select options for date ranges:
+
+        >>> import datetime
+        >>> import streamlit as st
+        >>>
+        >>> # Relative dates using timedelta
+        >>> d = st.date_input(
+        ...     "Select a reporting period",
+        ...     value=[],
+        ...     quick_select_options={
+        ...         "Last Week": (
+        ...             datetime.timedelta(days=-7),
+        ...             datetime.timedelta(days=0),
+        ...         ),
+        ...         "Last Month": (datetime.timedelta(days=-30), "today"),
+        ...         "Next 30 Days": ("today", datetime.timedelta(days=30)),
+        ...     },
+        ... )
+        >>> d
+
+        >>> # Absolute dates for fiscal periods
+        >>> d = st.date_input(
+        ...     "Select fiscal quarter",
+        ...     value=[],
+        ...     quick_select_options={
+        ...         "Q1 2025": (datetime.date(2025, 1, 1), datetime.date(2025, 3, 31)),
+        ...         "Q2 2025": (datetime.date(2025, 4, 1), datetime.date(2025, 6, 30)),
+        ...     },
+        ... )
+        >>> d
+
+        >>> # Mixed: relative and absolute dates
+        >>> d = st.date_input(
+        ...     "Custom range",
+        ...     value=[],
+        ...     quick_select_options={
+        ...         "Since New Year": (datetime.date(2025, 1, 1), "today"),
+        ...         "Until Year End": ("today", datetime.date(2025, 12, 31)),
+        ...     },
+        ... )
+        >>> d
+
         """
         ctx = get_script_run_ctx()
         return self._date_input(
@@ -1729,6 +1846,7 @@ class TimeWidgetsMixin:
             format=format,
             width=width,
             bind=bind,
+            quick_select_options=quick_select_options,
             ctx=ctx,
         )
 
@@ -1749,6 +1867,7 @@ class TimeWidgetsMixin:
         label_visibility: LabelVisibility = "visible",
         width: WidthWithoutContent = "stretch",
         bind: BindOption = None,
+        quick_select_options: QuickSelectOptions | None = None,
         ctx: ScriptRunContext | None = None,
     ) -> DateWidgetReturn:
         key = to_key(key)
@@ -1838,6 +1957,18 @@ class TimeWidgetsMixin:
 
         del value, min_value, max_value
 
+        # Validate and process quick_select_options
+        if quick_select_options is not None:
+            if not parsed_values.is_range:
+                raise StreamlitAPIException(
+                    "quick_select_options can only be used with date range inputs. "
+                    "Pass a list or tuple as the value parameter to create a date range input."
+                )
+            if not isinstance(quick_select_options, dict):
+                raise StreamlitAPIException(
+                    f"quick_select_options must be a dict, got {type(quick_select_options).__name__}"
+                )
+
         date_input_proto = DateInputProto()
         date_input_proto.id = element_id
         date_input_proto.is_range = parsed_values.is_range
@@ -1865,6 +1996,16 @@ class TimeWidgetsMixin:
 
         if bind == "query-params" and key is not None:
             date_input_proto.query_param_key = str(key)
+
+        if quick_select_options is not None:
+            date_input_proto.quick_select = bool(quick_select_options)
+            for option_label, (begin, end) in quick_select_options.items():
+                option = date_input_proto.quick_select_options.add()
+                option.id = option_label
+                begin_date = _resolve_quick_select_date(begin)
+                end_date = _resolve_quick_select_date(end)
+                option.begin_date = date.strftime(begin_date, "%Y/%m/%d")
+                option.end_date = date.strftime(end_date, "%Y/%m/%d")
 
         serde = DateInputSerde(parsed_values)
 

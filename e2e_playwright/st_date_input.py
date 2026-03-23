@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import streamlit as st
 from streamlit import runtime
@@ -192,3 +192,24 @@ else:
         format="YYYY/MM/DD",
     )
     st.write("Initial date input value:", dval)
+
+# --- Quick select options ---
+
+v_qs1 = st.date_input(
+    "Quick select with custom options",
+    value=[],
+    quick_select_options={
+        "Last 7 Days": (timedelta(days=-7), "today"),
+        "Last 30 Days": (timedelta(days=-30), "today"),
+        "Q1 2025": (date(2025, 1, 1), date(2025, 3, 31)),
+    },
+)
+st.write("Quick select value:", v_qs1)
+
+v_qs2 = st.date_input(
+    "Quick select disabled",
+    value=[],
+    min_value=date(2020, 1, 1),
+    quick_select_options={},
+)
+st.write("Quick select disabled value:", v_qs2)

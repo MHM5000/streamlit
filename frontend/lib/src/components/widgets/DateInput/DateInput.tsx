@@ -155,16 +155,39 @@ function DateInput({
 
   const maxDate = useMemo(() => getMaxDate(element), [element])
 
+  // Determine quick select behavior based on the optional quick_select proto field:
+  // - unset: auto-enable for range inputs with old min dates
+  // - true: enable with custom options if provided
+  // - false: explicitly disabled
   const enableQuickSelect = useMemo(() => {
+    // Explicit control from backend
+    if (element.quickSelect != null) {
+      return element.quickSelect
+    }
+
+    // Auto behavior: enable default quick select for old range inputs
     if (!element.isRange) {
       return false
     }
-
-    // Since quick select allows to select ranges up to the past 2 years,
-    // we should only enable it if the min date is older than 2 years ago.
     const twoYearsAgo = moment().subtract(2, "years").toDate()
     return minDate < twoYearsAgo
-  }, [element.isRange, minDate])
+  }, [element.isRange, element.quickSelect, minDate])
+
+  const quickSelectOptions = useMemo(() => {
+    if (!enableQuickSelect) {
+      return undefined
+    }
+    if (element.quickSelectOptions && element.quickSelectOptions.length > 0) {
+      return element.quickSelectOptions
+        .filter(opt => opt.id && opt.beginDate && opt.endDate)
+        .map(opt => ({
+          id: opt.id!,
+          beginDate: new Date(opt.beginDate!),
+          endDate: new Date(opt.endDate!),
+        }))
+    }
+    return undefined
+  }, [enableQuickSelect, element.quickSelectOptions])
 
   const clearable = element.default.length === 0 && !disabled
 
@@ -304,7 +327,12 @@ function DateInput({
         disabled={disabled}
         onChange={handleChange}
         onClose={handleClose}
-        quickSelect={enableQuickSelect}
+        {...(enableQuickSelect
+          ? {
+              quickSelect: true,
+              ...(quickSelectOptions ? { quickSelectOptions } : {}),
+            }
+          : {})}
         overrides={{
           Popover: {
             props: {
